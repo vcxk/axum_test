@@ -1,6 +1,6 @@
 use sea_orm_migration::prelude::*;
 
-use super::entities::User;
+use crate::entities::User;
 
 
 #[derive(DeriveMigrationName)]

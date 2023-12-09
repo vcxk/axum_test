@@ -1,6 +1,7 @@
 use sea_orm_migration::prelude::*;
 
-use crate::entities::LoginToken;
+use crate::entities::MqttMessage as Model;
+
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -11,21 +12,19 @@ impl MigrationTrait for Migration {
         // Replace the sample below with your own migration scripts
         manager.create_table(
             Table::create()
-                .table(LoginToken::Table)
+                .table(Model::Table)
                 .if_not_exists()
                 .col(
-                    ColumnDef::new(LoginToken::Id)
+                    ColumnDef::new(Model::Id)
                         .integer()
                         .not_null()
                         .auto_increment()
                         .primary_key(),
                 )
-                .col(ColumnDef::new(LoginToken::Token).string().unique_key().not_null())
-                .col(ColumnDef::new(LoginToken::UserId).integer().not_null())
-                .col(ColumnDef::new(LoginToken::Time).date_time())
-                .col(ColumnDef::new(LoginToken::Ip).string())
-                .col(ColumnDef::new(LoginToken::Device).string())
-                .col(ColumnDef::new(LoginToken::Expired).date_time())
+                .col(ColumnDef::new(Model::Sn).string().not_null())
+                .col(ColumnDef::new(Model::Msg).string().not_null())
+                .col(ColumnDef::new(Model::Type).string())
+                .col(ColumnDef::new(Model::CreateTime).date_time())
                 .to_owned(),
             ).await
     }
@@ -33,7 +32,7 @@ impl MigrationTrait for Migration {
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // Replace the sample below with your own migration scripts
         manager
-            .drop_table(Table::drop().table(LoginToken::Table).to_owned())
+            .drop_table(Table::drop().table(Model::Table).to_owned())
             .await
     }
 }

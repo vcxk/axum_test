@@ -1,6 +1,6 @@
 use sea_orm_migration::prelude::*;
 
-use super::entities::UserRole;
+use crate::entities::UserRole;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;

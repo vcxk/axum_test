@@ -22,6 +22,7 @@ pub enum LoginToken {
     Token,
     Ip,
     Device,
+    Expired,
 }
 
 #[derive(DeriveIden)]
@@ -56,4 +57,39 @@ pub enum  RolePermit {
     Id,
     RoleId,
     PermitId
+}
+
+#[derive(DeriveIden)]
+pub enum MqttMessage {
+    Table,
+    Id,
+    Msg,
+    Type,
+    Sn,
+    CreateTime
+}
+
+#[derive(DeriveIden)]
+pub enum MqttAth20 {
+    Table,
+    Id,
+    Sn,
+    Temperature,
+    Humidity,
+    CreateTime
+}
+
+#[derive(DeriveIden)]
+pub enum MqttAth20Statistics {
+    Table,
+    Id,
+    Sn,
+    TempData,
+    TempMax,
+    TempMin,
+    HumiData,
+    HumiMax,
+    HumiMin,
+    StartTime,
+    Duration 
 }
