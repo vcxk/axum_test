@@ -2,7 +2,7 @@ use std::{time::{Duration, SystemTime}, sync::Arc, ops::Add};
 
 use paho_mqtt::{AsyncClient, Client, ConnectOptions, ConnectOptionsBuilder, QOS_0, Message};
 use sea_orm::{Related, ActiveValue, prelude::ChronoDateTime};
-use tokio::{time::{sleep, Instant}, sync::mpsc::Sender};
+use tokio::{time::{sleep, Instant}, sync::mpsc::{Sender, self}};
 
 
 use sea_orm::entity::prelude::*;
@@ -33,8 +33,10 @@ pub(crate) async fn start_mqtt_client_loop() -> anyhow::Result<()> {
     
 }
 
+#[derive(Clone)]
 pub(crate) struct MqttClient {
-    client:Arc<Client>
+    pub client:Arc<AsyncClient>,
+    // sender:Sender<Message>
 }
 
 fn resolvMessage(msg:&Message) -> mqtt_message::ActiveModel {
@@ -54,14 +56,14 @@ impl MqttClient {
 
     pub async fn connect(uri:&str,s:Sender<Vec<mqtt_message::ActiveModel>>) -> anyhow::Result<MqttClient> {
 
-        let cli = Arc::new(Client::new(uri).unwrap());
+        let cli = Arc::new(AsyncClient::new(uri).unwrap());
         let opts = ConnectOptionsBuilder::new_v3()
             .clean_session(true)
             .keep_alive_interval(Duration::from_secs(120))
             .finalize();
         // cli.set_message_callback(mqtt_msg_callback);
-        cli.connect(opts)?;
-        cli.subscribe("/esp/+/+", QOS_0)?;
+        cli.connect(opts).await?;
+        cli.subscribe("/esp/+/+", QOS_0).await?;
         let cli2 = cli.clone();
         tokio::spawn(async move {
             let consuming = cli2.start_consuming();
@@ -98,12 +100,25 @@ impl MqttClient {
                         println!("hum = {:?} tem = {:?}",hum,tem);
                         temps.push(resolvMessage(&msg));
                     } else {
-                        println!("{:?}",topic);
-                        println!("{:?}",payload);
+                        println!("{:?} : {:?}",topic,payload);
                     }
                 }
             }
+            println!("mqtt loop out");
         });
-        Ok(MqttClient { client: cli })
+
+        // let (s,mut c) = mpsc::channel(128);
+        // let ccli = cli.clone();
+        // tokio::spawn(async move {
+        //     loop {
+        //         if let Some(msg) = c.recv().await {
+        //             ccli.publish(msg);
+        //         };
+        //     }
+        // });
+        Ok(MqttClient { 
+            client: cli, 
+            // sender:s
+        } )
     }
 }
