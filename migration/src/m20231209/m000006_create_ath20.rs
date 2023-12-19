@@ -1,5 +1,5 @@
 use sea_orm_migration::prelude::*;
-use crate::entities::MqttAth20 as Model;
+use crate::entities::MqttAht20 as Model;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;

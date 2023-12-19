@@ -2,11 +2,13 @@ use std::time::Duration;
 
 use axum::{Router, routing::{self, get_service}, extract::{State, Query, Path}};
 use paho_mqtt::Message;
+use sea_orm::{EntityTrait, PaginatorTrait};
 use tokio::time::sleep;
 use tower_http::services::ServeDir;
 use serde::*;
 
-use crate::SharedState;
+use crate::{SharedState, entity::mqtt_aht20};
+use crate::entity::prelude::*;
 
 
 pub fn make_routes(state:SharedState) -> Router {
@@ -19,8 +21,9 @@ pub fn make_routes(state:SharedState) -> Router {
                 ServeDir::new(static_dir)
             )
         )
-        .route("/handle", routing::get(handle))
-        .route("/mqtt/set/time/:sn", routing::get(handle2))
+        // .route("/handle", routing::get(handle))
+        .route("/mqtt/set/time/:sn", routing::post(mqtt_set_time))
+        // .route("/aht20/list", routing::get(aht20_list))
         .with_state(state);
     
     return route;
@@ -33,11 +36,7 @@ struct MyResponse<T> {
     data:Option<T>
 }
 
-async fn handle(State(state):State<SharedState>) -> String {
-    "ok".to_string()
-}
-
-async fn handle2(State(state):State<SharedState>,path:Path<String>) {
+async fn mqtt_set_time(State(state):State<SharedState>,path:Path<String>) {
     let mqtt = &state.mqtt;
     println!("path = {:?}",path.0);
     let now = chrono::Utc::now();
@@ -49,6 +48,17 @@ async fn handle2(State(state):State<SharedState>,path:Path<String>) {
     };
     println!("set time to {:?}",ts);
     // sleep(Duration::from_secs(1)).await
+}
+
+#[derive(Serialize,Deserialize)]
+struct PageInfo {
+    page:u64,
+    size:u64
+}
+async fn aht20_list(State(state):State<SharedState>) -> Vec<mqtt_aht20::Model>  {
+    let db = &state.conn;
+    let data = MqttAht20::find().paginate(db, 20).fetch_page(1).await.unwrap_or(vec![]);
+    data
 }
 
 

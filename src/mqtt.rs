@@ -1,4 +1,4 @@
-use std::{time::{Duration, SystemTime}, sync::Arc, ops::Add};
+use std::{time::{Duration, SystemTime}, sync::Arc, ops::Add, thread::panicking};
 
 use paho_mqtt::{AsyncClient, Client, ConnectOptions, ConnectOptionsBuilder, QOS_0, Message};
 use sea_orm::{Related, ActiveValue, prelude::ChronoDateTime};
@@ -6,6 +6,8 @@ use tokio::{time::{sleep, Instant}, sync::mpsc::{Sender, self}};
 
 
 use sea_orm::entity::prelude::*;
+use crate::entity::mqtt_aht20;
+
 use super::entity::mqtt_message;
 
 fn mqtt_msg_callback(cli:&AsyncClient,msg:Option<Message>) {
@@ -39,22 +41,27 @@ pub(crate) struct MqttClient {
     // sender:Sender<Message>
 }
 
-fn resolvMessage(msg:&Message) -> mqtt_message::ActiveModel {
-    let sn = msg.topic().split("/").last().unwrap().to_string();
-    let content = msg.payload_str().to_string();
-
-    let model = mqtt_message::ActiveModel { 
-        sn:ActiveValue::Set(sn),
-        msg:ActiveValue::Set(content),
-        create_time:ActiveValue::Set(Some(chrono::Utc::now().naive_local())),
-        ..Default::default() 
-    };
-    model
+fn resolve_ath20_msg(msg: &Message) -> Option<mqtt_aht20::ActiveModel> {
+    let true = msg.topic().contains("/aht20") else { return None; };
+    let Some(sn) = msg.topic().split("/").last() else { return None; };
+    let payload = msg.payload_str();
+    let values = payload.split(" ");
+    let values:Vec<&str> = values.collect();
+    if values.len() < 9 { return None; }
+    let Ok(hum) = values[5].parse() else { return None; };
+    let Ok(tem) = values[8].parse() else { return None; };
+    Some(mqtt_aht20::ActiveModel {
+        sn: ActiveValue::Set(sn.to_string()),
+        humidity: ActiveValue::Set(hum),
+        temperature: ActiveValue::Set(tem),
+        create_time: ActiveValue::Set(chrono::Utc::now().naive_local()),
+        ..Default::default()
+    })
 }
 
 impl MqttClient {
 
-    pub async fn connect(uri:&str,s:Sender<Vec<mqtt_message::ActiveModel>>) -> anyhow::Result<MqttClient> {
+    pub async fn connect(uri:&str,s:Sender<Vec<mqtt_aht20::ActiveModel>>) -> anyhow::Result<MqttClient> {
 
         let cli = Arc::new(AsyncClient::new(uri).unwrap());
         let opts = ConnectOptionsBuilder::new_v3()
@@ -68,15 +75,19 @@ impl MqttClient {
         tokio::spawn(async move {
             let consuming = cli2.start_consuming();
             let mut last = SystemTime::now();
-            let mut temps = Vec::<mqtt_message::ActiveModel>::new();
+
+            let mut ath20s = Vec::<mqtt_aht20::ActiveModel>::new();
+
             loop {
                 if SystemTime::now().duration_since(last).unwrap().as_millis() >= 1000 {
                     last = last.add(Duration::from_millis(1000));
-                    s.send(temps).await;
-                    temps = Vec::<mqtt_message::ActiveModel>::new();
+                    s.send(ath20s).await;
+                    ath20s = Vec::<mqtt_aht20::ActiveModel>::new();
                     //todo!()
+                } else {
+                    sleep(Duration::from_millis(100)).await;
                 }
-                sleep(Duration::from_millis(100)).await;
+                
                 while !consuming.is_empty() {
                     let msg = match consuming.try_recv() {
                         Err(e) => break,
@@ -92,16 +103,14 @@ impl MqttClient {
                     
     
                     if topic.contains("/aht20") {
-                        let values = payload.split(" ");
-                        let values:Vec<&str> = values.collect();
-                        if values.len() < 9 { continue; }
-                        let hum:f32 = values[5].parse().unwrap();
-                        let tem:f32 = values[8].parse().unwrap();
-                        println!("hum = {:?} tem = {:?}",hum,tem);
-                        temps.push(resolvMessage(&msg));
-                    } else {
-                        println!("{:?} : {:?}",topic,payload);
+                        if let Some(ath20) = resolve_ath20_msg(&msg) {
+                            ath20s.push(ath20);
+                        } else {
+                            println!("get aht20 model fail");
+                        }
                     }
+                    println!("{:?} : {:?}",topic,payload);
+                    
                 }
             }
             println!("mqtt loop out");

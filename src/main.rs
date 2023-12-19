@@ -17,6 +17,8 @@ mod mqtt;
 
 use entity::mqtt_message;
 
+use crate::entity::mqtt_aht20;
+
 #[tokio::main]
 async fn main() -> Result<()> {
 
@@ -29,7 +31,7 @@ async fn main() -> Result<()> {
     let db_connection = Database::connect(opt).await?;
     // println!("connect to db success : {:?}",db_url);
     
-    let (s,mut r) = mpsc::channel::<Vec<mqtt_message::ActiveModel>>(20);
+    let (s,mut r) = mpsc::channel::<Vec<mqtt_aht20::ActiveModel>>(20);
     let mqtt_url = "tcp://sh.vcxk.fun:1883";
     let client = MqttClient::connect(mqtt_url,s).await?;
     println!("connect to mqtt success : {:?}",mqtt_url);
@@ -37,8 +39,8 @@ async fn main() -> Result<()> {
     tokio::spawn(async move {
         while let Some(msgs) =  r.recv().await{
             if msgs.is_empty() { continue; }
-            if let Err(e) = MqttMessage::insert_many(msgs).exec(&db_connection2).await {
-                println!("mqtt_message insert many err {:?}",e);
+            if let Err(e) = MqttAht20::insert_many(msgs).exec(&db_connection2).await {
+                println!("mqtt_ath20 insert many err {:?}",e);
             } else {
                 // println!("insert many success");
             }

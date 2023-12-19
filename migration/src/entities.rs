@@ -70,7 +70,7 @@ pub enum MqttMessage {
 }
 
 #[derive(DeriveIden)]
-pub enum MqttAth20 {
+pub enum MqttAht20 {
     Table,
     Id,
     Sn,
@@ -80,7 +80,7 @@ pub enum MqttAth20 {
 }
 
 #[derive(DeriveIden)]
-pub enum MqttAth20Statistics {
+pub enum MqttAht20Statistics {
     Table,
     Id,
     Sn,
