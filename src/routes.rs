@@ -1,8 +1,8 @@
 use std::time::Duration;
 
-use axum::{Router, routing::{self, get_service}, extract::{State, Query, Path}};
+use axum::{Router, routing::{self, get_service}, extract::{State, Query, Path}, Json};
 use paho_mqtt::Message;
-use sea_orm::{EntityTrait, PaginatorTrait};
+use sea_orm::{EntityTrait, PaginatorTrait, QueryOrder};
 use tokio::time::sleep;
 use tower_http::services::ServeDir;
 use serde::*;
@@ -23,7 +23,7 @@ pub fn make_routes(state:SharedState) -> Router {
         )
         // .route("/handle", routing::get(handle))
         .route("/mqtt/set/time/:sn", routing::post(mqtt_set_time))
-        // .route("/aht20/list", routing::get(aht20_list))
+        .route("/aht20/list", routing::get(aht20_list))
         .with_state(state);
     
     return route;
@@ -55,10 +55,29 @@ struct PageInfo {
     page:u64,
     size:u64
 }
-async fn aht20_list(State(state):State<SharedState>) -> Vec<mqtt_aht20::Model>  {
+
+#[derive(Serialize,Deserialize)]
+struct PageResult<T> {
+    page:u64,
+    size:u64,
+    data:Vec<T>,
+    total:u64 
+}
+
+async fn aht20_list(State(state):State<SharedState>,Query(page): Query<PageInfo>) -> Json<PageResult<mqtt_aht20::Model>>  {
     let db = &state.conn;
-    let data = MqttAht20::find().paginate(db, 20).fetch_page(1).await.unwrap_or(vec![]);
-    data
+    let data = MqttAht20::find()
+        .order_by_desc(mqtt_aht20::Column::CreateTime)
+        .paginate(db, page.size)
+        .fetch_page(page.page)
+        .await.unwrap_or(vec![]);
+    let count = MqttAht20::find().count(db).await.unwrap_or(0);
+    Json(PageResult {
+        page:page.page,
+        size:page.size,
+        data:data,
+        total:count
+    })
 }
 
 
